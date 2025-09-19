@@ -1,0 +1,31 @@
+{
+  "name": "sirenbackend-main",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/kushwanth-masupalli/sirenBackend#readme",
+  "bugs": {
+    "url": "https://github.com/kushwanth-masupalli/sirenBackend/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kushwanth-masupalli/sirenBackend.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "axios": "^1.12.2",
+    "child-process": "^1.0.2",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "form-data": "^4.0.4",
+    "fs": "^0.0.1-security",
+    "multer": "^2.0.2",
+    "nodemon": "^3.1.10",
+    "path": "^0.12.7"
+  }
+}
