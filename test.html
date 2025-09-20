@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emergency Video Analysis System</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .upload-section {
+      border: 2px dashed #ccc;
+      padding: 40px;
+      text-align: center;
+      margin-bottom: 20px;
+      border-radius: 5px;
+      background-color: #fafafa;
+    }
+    .upload-section:hover {
+      border-color: #007bff;
+      background-color: #f0f8ff;
+    }
+    input[type="file"] {
+      margin: 20px 0;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      width: 100%;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      padding: 12px 30px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    button:disabled {
+      background-color: #6c757d;
+      cursor: not-allowed;
+    }
+    .status {
+      margin: 20px 0;
+      padding: 15px;
+      border-radius: 5px;
+      font-weight: bold;
+    }
+    .status.loading {
+      background-color: #fff3cd;
+      border: 1px solid #ffeaa7;
+      color: #856404;
+    }
+    .status.success {
+      background-color: #d1edff;
+      border: 1px solid #bee5eb;
+      color: #0c5460;
+    }
+    .status.error {
+      background-color: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
+    .results {
+      margin-top: 20px;
+      padding: 20px;
+      background-color: #f8f9fa;
+      border-radius: 5px;
+      border-left: 4px solid #007bff;
+    }
+    .emergency-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin: 20px 0;
+    }
+    .info-card {
+      background: white;
+      padding: 15px;
+      border-radius: 5px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .info-card h4 {
+      margin-top: 0;
+      color: #495057;
+    }
+    .severity-high { border-left: 4px solid #dc3545; }
+    .severity-medium { border-left: 4px solid #ffc107; }
+    .severity-low { border-left: 4px solid #28a745; }
+    .severity-critical { border-left: 4px solid #6f42c1; }
+    .transcript {
+      background: #e9ecef;
+      padding: 15px;
+      border-radius: 5px;
+      margin: 15px 0;
+      font-style: italic;
+      border-left: 4px solid #6c757d;
+    }
+    .confidence-bar {
+      width: 100%;
+      height: 20px;
+      background-color: #e9ecef;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 10px 0;
+    }
+    .confidence-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #dc3545 0%, #ffc107 50%, #28a745 100%);
+      transition: width 0.3s ease;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚨 Emergency Video Analysis System</h1>
+    <p>Upload a video file to analyze for emergencies. The system will extract audio, transcribe it, analyze keyframes, and determine the type of emergency, location, and appropriate response department.</p>
+    
+    <div class="upload-section">
+      <h3>📹 Upload Emergency Video</h3>
+      <input type="file" id="videoFile" accept="video/*">
+      <br>
+      <button onclick="processVideo()" id="processBtn">🔍 Analyze Video</button>
+    </div>
+
+    <div id="status" class="status" style="display: none;"></div>
+    
+    <div id="results" class="results" style="display: none;">
+      <h3>📊 Analysis Results</h3>
+      <div id="emergencyInfo"></div>
+    </div>
+  </div>
+
+  <script>
+    async function processVideo() {
+      const fileInput = document.getElementById('videoFile');
+      const statusDiv = document.getElementById('status');
+      const resultsDiv = document.getElementById('results');
+      const processBtn = document.getElementById('processBtn');
+      
+      if (!fileInput.files[0]) {
+        showStatus('Please select a video file first.', 'error');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('video', fileInput.files[0]);
+      
+      processBtn.disabled = true;
+      showStatus('🔄 Processing video... This may take a few minutes.', 'loading');
+      resultsDiv.style.display = 'none';
+      
+      try {
+        const response = await fetch('/process-video', {
+          method: 'POST',
+          body: formData
+        });
+        
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+        
+        // Check if response is ok
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        // Check content type
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          console.error('Non-JSON response:', text);
+          throw new Error('Server returned non-JSON response');
+        }
+        
+        // Get response text first to debug
+        const responseText = await response.text();
+        console.log('Raw response:', responseText);
+        
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('JSON parse error:', parseError);
+          console.error('Response text:', responseText);
+          throw new Error('Invalid JSON response from server');
+        }
+        
+        if (result.success) {
+          showStatus('✅ Analysis completed successfully!', 'success');
+          displayResults(result.analysis);
+        } else {
+          showStatus(`❌ Error: ${result.error}`, 'error');
+          if (result.details) {
+            console.error('Error details:', result.details);
+          }
+        }
+      } catch (error) {
+        console.error('Full error:', error);
+        showStatus(`❌ Error: ${error.message}`, 'error');
+      } finally {
+        processBtn.disabled = false;
+      }
+    }
+    
+    function showStatus(message, type) {
+      const statusDiv = document.getElementById('status');
+      statusDiv.textContent = message;
+      statusDiv.className = `status ${type}`;
+      statusDiv.style.display = 'block';
+    }
+    
+    function displayResults(analysis) {
+      const resultsDiv = document.getElementById('results');
+      const infoDiv = document.getElementById('emergencyInfo');
+      
+      const severityClass = `severity-${analysis.severity}`;
+      const confidencePercent = Math.round(analysis.confidence * 100);
+      
+      infoDiv.innerHTML = `
+        <div class="emergency-info">
+          <div class="info-card ${severityClass}">
+            <h4>🚨 Emergency Type</h4>
+            <p><strong>${analysis.emergency_type.toUpperCase()}</strong></p>
+            <p>Severity: <strong>${analysis.severity.toUpperCase()}</strong></p>
+          </div>
+          
+          <div class="info-card">
+            <h4>🏢 Response Department</h4>
+            <p><strong>${analysis.department.replace('_', ' ').toUpperCase()}</strong></p>
+          </div>
+          
+          <div class="info-card">
+            <h4>📍 Location</h4>
+            <p><strong>${analysis.location}</strong></p>
+          </div>
+          
+          <div class="info-card">
+            <h4>⏰ Timestamp</h4>
+            <p><strong>${new Date(analysis.timestamp).toLocaleString()}</strong></p>
+          </div>
+        </div>
+        
+        <div class="info-card">
+          <h4>🎯 Confidence Level</h4>
+          <div class="confidence-bar">
+            <div class="confidence-fill" style="width: ${confidencePercent}%"></div>
+          </div>
+          <p>${confidencePercent}% confidence</p>
+        </div>
+        
+        <div class="info-card">
+          <h4>📝 Description</h4>
+          <p>${analysis.description}</p>
+        </div>
+        
+        ${analysis.audio_transcript && analysis.audio_transcript !== 'No transcript available' ? `
+        <div class="transcript">
+          <h4>🎵 Audio Transcript</h4>
+          <p>"${analysis.audio_transcript}"</p>
+        </div>
+        ` : '<p><em>No audio transcript available</em></p>'}
+        
+        ${analysis.error ? `
+        <div class="info-card" style="border-left-color: #dc3545;">
+          <h4>⚠️ Processing Notes</h4>
+          <p style="color: #dc3545;">${analysis.error}</p>
+        </div>
+        ` : ''}
+      `;
+      
+      resultsDiv.style.display = 'block';
+    }
+    
+    // File input change handler
+    document.getElementById('videoFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const fileSize = (file.size / 1024 / 1024).toFixed(2);
+        showStatus(`📁 Selected: ${file.name} (${fileSize} MB)`, 'success');
+      }
+    });
+  </script>
+</body>
+</html>
