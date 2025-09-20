@@ -15,14 +15,16 @@ async function extractKeyFrames(videoPath, outputDir) {
       '-q:v', '2',
       '-frames:v', '10',
       '-y',
-      outputPattern,
-      '-loglevel', 'error'
+      '-loglevel', 'error',
+      outputPattern
     ]);
 
     const errors = [];
-    ffmpeg.stderr.on('data', (data) => errors.push(data.toString()));
+    const timeout = setTimeout(() => { if (!ffmpeg.killed) ffmpeg.kill('SIGKILL'); }, 30000);
 
-    ffmpeg.on('close', (code) => {
+    ffmpeg.stderr.on('data', data => errors.push(data.toString()));
+    ffmpeg.on('close', code => {
+      clearTimeout(timeout);
       if (code !== 0) return reject(new Error(`FFmpeg failed with code ${code}: ${errors.join('')}`));
 
       const frames = fs.readdirSync(outputDir)
@@ -34,18 +36,18 @@ async function extractKeyFrames(videoPath, outputDir) {
         return extractFramesAtIntervals(videoPath, outputDir).then(resolve).catch(reject);
       }
 
-      const framePaths = frames.map(f => path.join(outputDir, f));
-      resolve(framePaths);
+      resolve(frames.map(f => path.join(outputDir, f)));
     });
 
-    ffmpeg.on('error', (err) => reject(err));
-    setTimeout(() => { if (!ffmpeg.killed) ffmpeg.kill('SIGKILL'); }, 30000);
+    ffmpeg.on('error', reject);
   });
 }
 
 async function extractFramesAtIntervals(videoPath, outputDir) {
   return new Promise((resolve, reject) => {
+    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
     const outputPattern = path.join(outputDir, 'interval_%03d.jpg');
+
     const ffmpeg = spawn('ffmpeg', [
       '-i', videoPath,
       '-vf', 'fps=1/10',
@@ -53,25 +55,55 @@ async function extractFramesAtIntervals(videoPath, outputDir) {
       '-q:v', '2',
       '-frames:v', '3',
       '-y',
-      outputPattern,
-      '-loglevel', 'error'
+      '-loglevel', 'error',
+      outputPattern
     ]);
 
     const errors = [];
-    ffmpeg.stderr.on('data', (data) => errors.push(data.toString()));
+    const timeout = setTimeout(() => { if (!ffmpeg.killed) ffmpeg.kill('SIGKILL'); }, 30000);
 
-    ffmpeg.on('close', (code) => {
+    ffmpeg.stderr.on('data', data => errors.push(data.toString()));
+    ffmpeg.on('close', code => {
+      clearTimeout(timeout);
       if (code !== 0) return reject(new Error(`Interval extraction failed: ${errors.join('')}`));
+
       const frames = fs.readdirSync(outputDir)
         .filter(f => f.startsWith('interval_') && f.endsWith('.jpg'))
         .sort()
         .slice(0, 3);
+
       resolve(frames.map(f => path.join(outputDir, f)));
     });
 
-    ffmpeg.on('error', (err) => reject(err));
-    setTimeout(() => { if (!ffmpeg.killed) ffmpeg.kill('SIGKILL'); }, 30000);
+    ffmpeg.on('error', reject);
   });
 }
 
-module.exports = { extractKeyFrames, extractFramesAtIntervals };
+async function extractAudio(videoPath, outputDir) {
+  return new Promise((resolve, reject) => {
+    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+    const audioPath = path.join(outputDir, 'audio.wav');
+
+    const ffmpeg = spawn('ffmpeg', [
+      '-i', videoPath,
+      '-vn',
+      '-acodec', 'pcm_s16le',
+      '-ar', '16000',
+      '-ac', '1',
+      '-y',
+      '-loglevel', 'error',
+      audioPath
+    ]);
+
+    const errors = [];
+    ffmpeg.stderr.on('data', data => errors.push(data.toString()));
+    ffmpeg.on('close', code => {
+      if (code !== 0) return reject(new Error(`Audio extraction failed: ${errors.join('')}`));
+      resolve(audioPath);
+    });
+
+    ffmpeg.on('error', reject);
+  });
+}
+
+module.exports = { extractKeyFrames, extractFramesAtIntervals, extractAudio };

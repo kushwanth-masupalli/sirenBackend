@@ -1,0 +1,66 @@
+<div>
+  <button id="start">Start</button>
+  <button id="stop">Stop</button>
+  <pre id="transcript"></pre>
+</div>
+
+<script>
+const transcriptEl = document.getElementById('transcript');
+const startBtn = document.getElementById('start');
+const stopBtn = document.getElementById('stop');
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (!SpeechRecognition) {
+  transcriptEl.textContent = "Sorry, your browser doesn't support Speech Recognition.";
+} else {
+  const recog = new SpeechRecognition();
+  recog.lang = 'en-US';
+  recog.interimResults = true;
+  recog.continuous = true;
+
+  let finalText = '';
+  let isListening = false;
+
+  recog.onresult = event => {
+    let interim = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const r = event.results[i];
+      if (r.isFinal) finalText += r[0].transcript + ' ';
+      else interim += r[0].transcript;
+    }
+    transcriptEl.textContent = (finalText + (interim ? '\n' + interim : '')).trim();
+  };
+
+  recog.onstart = () => { isListening = true; transcriptEl.textContent = 'Listening...'; };
+  recog.onend = () => { if (isListening) recog.start(); };
+
+  startBtn.addEventListener('click', () => {
+    finalText = '';
+    transcriptEl.textContent = 'Listening...';
+    isListening = true;
+    try { recog.start(); } catch(e) { console.warn(e); }
+  });
+
+  stopBtn.addEventListener('click', async () => {
+    isListening = false;
+    try { recog.stop(); } catch(e) {}
+
+    // Replace with your uploaded image path from backend
+    const imagePath = 'frames/some_video/keyframe_001.jpg';
+
+    try {
+      const res = await fetch('/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imagePath, transcript: finalText })
+      });
+      const result = await res.json();
+      transcriptEl.textContent += `\n\nGemini result: ${JSON.stringify(result)}`;
+    } catch(err) {
+      console.error(err);
+      transcriptEl.textContent += `\n\nError sending to Gemini: ${err.message}`;
+    }
+  });
+}
+</script>

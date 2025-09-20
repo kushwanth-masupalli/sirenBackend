@@ -1,18 +1,18 @@
 const fs = require('fs');
 const axios = require('axios');
 
-async function analyzeFrameWithGemini(imagePath) {
+async function analyzeFrameWithGemini(imagePath, transcript) {
   try {
     if (!fs.existsSync(imagePath)) throw new Error(`Image file does not exist: ${imagePath}`);
     const imageBuffer = fs.readFileSync(imagePath);
     const base64Image = imageBuffer.toString('base64');
 
+    const promptText = `Analyze this image for emergencies along with the following transcript: "${transcript}". Respond ONLY with valid JSON: {"emergency_type": "string","confidence": number}`;
+
     const payload = {
       contents: [{
         parts: [
-          { 
-            text: 'Analyze this image for emergencies. Respond ONLY with valid JSON: {"emergency_type": "string","confidence": number}' 
-          },
+          { text: promptText },
           { 
             inline_data: {
               mime_type: "image/jpeg",
@@ -33,7 +33,6 @@ async function analyzeFrameWithGemini(imagePath) {
     const jsonStart = responseText.indexOf('{');
     const jsonEnd = responseText.lastIndexOf('}') + 1;
     const result = JSON.parse(responseText.substring(jsonStart, jsonEnd));
-    console.log(result);
 
     if (!result.emergency_type || typeof result.confidence !== 'number') throw new Error('Invalid response format');
     return result;
